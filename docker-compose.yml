@@ -1,0 +1,40 @@
+secrets:
+  signalwire_token:
+    environment: SIGNALWIRE_TOKEN
+
+services:
+  freeswitch:
+    build:
+      context: .
+      secrets:
+        - signalwire_token
+    image: freeswitch:latest
+    container_name: freeswitch
+    network_mode: "host"
+    cap_add:
+      - SYS_NICE
+    env_file: .env
+    volumes:
+      - ./configs/freeswitch:/etc/freeswitch
+      - ./configs/freeswitch-sounds:/usr/share/freeswitch/sounds
+      - ./configs/storage:/var/lib/freeswitch/storage
+      - ./logs:/var/log/freeswitch
+    command: ["freeswitch", "-nonatmap", "-nonat"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    restart: unless-stopped
+    healthcheck:
+      # Credential-free by design: a bare TCP connect to the ESL port proves
+      # FreeSWITCH's core is up and accepting connections, without ever
+      # putting the ESL password into `docker inspect` output (which anyone
+      # with docker access on the host could read). Deeper authenticated
+      # checks (gateway state, registration, etc.) belong in Zabbix, which
+      # already has scoped access to the password — see zabbix/README.md.
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/8021"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

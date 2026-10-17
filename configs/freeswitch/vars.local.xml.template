@@ -1,0 +1,13 @@
+<!--
+    Generated at container start by entrypoint.sh from .env — do not edit by hand,
+    changes will be overwritten on next `docker compose up`. Edit .env instead.
+    The checked-in copy of this file is the TEMPLATE (with __TOKEN__ placeholders);
+    the generated configs/freeswitch/vars.local.xml is gitignored.
+-->
+<include>
+  <X-PRE-PROCESS cmd="set" data="esl_password=__ESL_PASSWORD__"/>
+  <X-PRE-PROCESS cmd="set" data="my_mobile_number=__MY_MOBILE_NUMBER__"/>
+  <X-PRE-PROCESS cmd="set" data="my_signalwire_number=__MY_SIGNALWIRE_NUMBER__"/>
+  <X-PRE-PROCESS cmd="set" data="rtp_start_port=__RTP_START_PORT__"/>
+  <X-PRE-PROCESS cmd="set" data="rtp_end_port=__RTP_END_PORT__"/>
+</include>

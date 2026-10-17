@@ -1,0 +1,1 @@
+deb [signed-by=/etc/apt/keyrings/zabbix.gpg] https://repo.zabbix.com/zabbix/7.4/stable/ubuntu noble main

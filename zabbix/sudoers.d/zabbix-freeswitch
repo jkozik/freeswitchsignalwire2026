@@ -1,0 +1,4 @@
+# Scoped so the zabbix service account can read FreeSWITCH health checks
+# without ESL-password access or docker-group (host-root-equivalent) rights.
+# See /usr/local/bin/fs_cli_zabbix.sh for the enforced whitelist of checks.
+zabbix ALL=(root) NOPASSWD: /usr/local/bin/fs_cli_zabbix.sh *

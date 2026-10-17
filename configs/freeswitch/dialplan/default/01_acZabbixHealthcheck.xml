@@ -1,0 +1,15 @@
+<include>
+  <extension name="zabbix_healthcheck_noring">
+    <!--
+        Dedicated no-ring test extension for the Zabbix loopback health check.
+        Never ring extension 1001 (a real phone) for this — see
+        freeswitch_zabbix_monitoring memory. Answers, holds briefly so the
+        answer/RTP path is genuinely exercised, then hangs up on its own.
+    -->
+    <condition field="destination_number" expression="^9999$">
+      <action application="answer"/>
+      <action application="sleep" data="200"/>
+      <action application="hangup" data="NORMAL_CLEARING"/>
+    </condition>
+  </extension>
+</include>

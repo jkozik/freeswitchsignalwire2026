@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Restricted context for spare / not-yet-trusted extensions.
+
+    Point an extension's user_context at "restricted" (instead of "default") while you're
+    setting up a new ATA or softphone. From here it can only reach two numbers - your mobile
+    and your own SignalWire DID - plus other internal 100X extensions, so a half-configured
+    device can't run up toll charges no matter what it dials. There is no route to the
+    SignalWire trunk for any other number.
+
+    The two allowed destinations come from MYMOBILEPHONENUMBERWITHPLUS and
+    MYSIGNALWIREPHONENUMBERWITHPLUS in .env (read here via ${env(...)}), not hardcoded, so
+    they only need to be correct in one place.
+
+    See README.md "Restricted extensions" for how to promote an extension to full calling
+    once it's confirmed working.
+-->
+<include>
+  <context name="restricted">
+
+    <extension name="restricted_call_mobile">
+      <condition field="destination_number" expression="^(\Q$${my_mobile_number}\E)$">
+        <action application="set" data="effective_caller_id_number=${outbound_caller_id_number}"/>
+        <action application="set" data="effective_caller_id_name=${outbound_caller_id_name}"/>
+        <action application="answer"/>
+        <action application="bridge" data="sofia/gateway/signalwire/$1"/>
+      </condition>
+    </extension>
+
+    <extension name="restricted_call_signalwire_did">
+      <condition field="destination_number" expression="^(\Q$${my_signalwire_number}\E)$">
+        <action application="set" data="effective_caller_id_number=${outbound_caller_id_number}"/>
+        <action application="set" data="effective_caller_id_name=${outbound_caller_id_name}"/>
+        <action application="answer"/>
+        <action application="bridge" data="sofia/gateway/signalwire/$1"/>
+      </condition>
+    </extension>
+
+    <extension name="restricted_internal_extension">
+      <condition field="destination_number" expression="^(10[01][0-9])$">
+        <action application="set" data="call_timeout=30"/>
+        <action application="set" data="hangup_after_bridge=true"/>
+        <action application="bridge" data="user/$1@${domain_name}"/>
+      </condition>
+    </extension>
+
+  </context>
+</include>

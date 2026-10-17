@@ -1,0 +1,11 @@
+PidFile=/run/zabbix/zabbix_agentd.pid
+LogFile=/var/log/zabbix/zabbix_agentd.log
+LogFileSize=0
+Server=192.168.100.0/24
+ServerActive=127.0.0.1
+Hostname=freeswitch2026.kozik.net
+Include=/etc/zabbix/zabbix_agentd.d/*.conf
+TLSConnect=psk
+TLSAccept=psk
+TLSPSKIdentity=PSK 001
+TLSPSKFile=/etc/zabbix/zabbix_agentd.psk
