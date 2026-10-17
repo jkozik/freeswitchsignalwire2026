@@ -17,12 +17,20 @@ Zoiper SIP client (192.168.100.100, UDP port 55601)
         |
 FreeSwitch 1.11.1 Docker container (192.168.100.114:5060)
         |
-        | SIP/TLS port 6050 (mod_signalwire)
+        | SIP/TLS port 5061 (mod_signalwire, FreeSwitch's own local bind port is 6050)
         |
 SignalWire cloud trunk ──── PSTN ──── mobile / landline
 ```
 
-**Key point:** No pfSense NAT/port-forward rules are required for internal SIP clients. The SignalWire trunk on port 6050 (TCP/TLS, outbound from FreeSwitch) does require a pfSense allow rule.
+**Key point:** No pfSense NAT/port-forward rules are required for internal SIP clients, and in
+practice none were needed for the SignalWire trunk either — pfSense's default "LAN net to any"
+rule already covers the outbound SIP/TLS signaling (FreeSwitch → SignalWire's real listening
+port, 5061 — confirmed live via `ss`, not the `6050` `sofia status` shows, which is only
+FreeSWITCH's own local bind port) and the outbound RTP media, both initiated by FreeSwitch, both
+riding the state table back. Confirmed: no explicit rule for either port exists in this
+deployment, and the trunk registers and places calls fine. Only add an explicit LAN pass rule
+(TCP 5061, destination any — don't pin to a specific SignalWire IP, they can change) if LAN
+egress is ever locked down beyond the default.
 
 ---
 
@@ -132,7 +140,7 @@ RTPENDPORT=20100
 ### mod_signalwire
 FreeSwitch connects to SignalWire via `mod_signalwire` which auto-provisions credentials stored in `configs/storage/signalwire-conf.dat`. This file was migrated from the old container on 192.168.100.128 and updated with the new IP/port.
 
-- **SIP profile:** `signalwire` on port 6050 (TLS)
+- **SIP profile:** `signalwire`, local bind port 6050 (TLS) — the gateway's real outbound connection to SignalWire runs on port 5061
 - **Gateway name:** `signalwire` (under profile `signalwire`)
 - **SIP domain:** `jkozik-63eecb1e59a343e4b71567f323a71d52.sip.signalwire.com`
 - **Status check:** `docker exec freeswitch fs_cli -x 'sofia status gateway'` → should show `REGED`
@@ -216,9 +224,9 @@ reloadxml                             # Reload dialplan without restart
 ## Troubleshooting
 
 ### SignalWire gateway shows NOREG instead of REGED
-1. Check `configs/storage/signalwire-conf.dat` — verify IP is 192.168.100.114 and port is 6050
+1. Check `configs/storage/signalwire-conf.dat` — verify IP is 192.168.100.114
 2. Check logs: `docker compose logs -f | grep -i signalwire`
-3. Verify port 6050 TCP is allowed outbound in pfSense
+3. Verify port 5061 TCP outbound (not 6050 — that's FreeSwitch's own local bind port) is allowed outbound in pfSense
 
 ### SIP client registers but doesn't receive calls (RECOVERY_ON_TIMER_EXPIRE)
 **Root cause:** FreeSwitch cannot open a new connection back to the SIP client (device firewall blocks incoming connections).

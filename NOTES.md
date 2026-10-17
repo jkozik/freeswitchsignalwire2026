@@ -155,6 +155,36 @@ read before migrating this to a new server. This file just covers the "why":
 
 ---
 
+## The firewall port that wasn't
+
+**`sofia status`/`sofia status profile signalwire` reports port 6050 for the `signalwire`
+profile — but that's not the port that ever hits the wire to SignalWire.** 6050 is only
+FreeSWITCH's own *local* bind port for that sofia profile (`TLS-BIND-URL
+sips:mod_sofia@<ext-ip>:6050;...`). The actual outbound connection the registered gateway makes
+to SignalWire's cloud (`jkozik-....sip.signalwire.com`) runs on TCP **5061** (standard SIP-TLS)
+— confirmed 2026-10-17 by inspecting a live connection with `ss -tnp` on the host and finding the
+`freeswitch` process's real `ESTAB` socket, not by reading any config file or doc. Every doc in
+this repo (README.md, SETUP.md) had the wrong port (6050) until this was caught — written down
+originally straight from `sofia status` output without checking what actually left the box.
+
+Also worth remembering: SignalWire's SIP domain resolves to multiple IPs (seen:
+`159.65.244.171`, `152.42.144.114`), and their own docs say not to firewall by IP since they can
+change — the pfSense rule should match on destination port only, destination `any`.
+
+This is the same "verify, don't trust the name/default" category this project keeps hitting (see
+the fail2ban section above) — a seventh instance, if anyone's counting.
+
+**Follow-up, same day: turns out no explicit pfSense rule was ever needed for either port.**
+Checked the live pfSense ruleset — no rule exists for 6050 or 5061 — and the trunk still registers
+and places calls. pfSense's default "LAN net to any" rule already permits this outbound traffic
+(both the TLS signaling and the RTP media, same `RTPSTARTPORT`–`RTPENDPORT` range as LAN calls,
+no per-gateway range), and being a stateful firewall, the same rule's state table covers the
+return traffic — nothing SignalWire sends back is a *new* inbound connection. An explicit LAN pass
+rule only becomes necessary if LAN egress is ever restricted beyond that default; README.md and
+SETUP.md document what that rule would look like, framed as conditional rather than required.
+
+---
+
 ## Repo hygiene notes
 
 - `01_aaSignalWirePSTN.xml` and `01_abSignalWireIncomingFromPSTN.xml` exist both at the project root

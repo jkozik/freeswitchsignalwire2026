@@ -44,7 +44,7 @@ Also, note that I setup a couple of simple cut/paste test call scripts.  It took
 │  sofia profile "internal"       │  ← LAN-facing; SIP clients register here
 │  sofia profile "signalwire"     │  ← trunk to SignalWire (mod_signalwire)
 └─────────────┬───────────────────┘
-              │ SIP/TLS :6050 (outbound-registered trunk)
+              │ SIP/TLS :5061 (outbound-registered trunk)
               ▼
 ┌─────────────────────────────────┐
 │  SignalWire Cloud                │
@@ -59,8 +59,9 @@ Also, note that I setup a couple of simple cut/paste test call scripts.  It took
 
 No pfSense/NAT rules are needed for the Zoiper↔FreeSWITCH leg — it's LAN-local, and FreeSWITCH
 reuses the client's own outbound registration to send calls back (see
-[Troubleshooting](#troubleshooting) for why UDP transport matters here). The only firewall rule
-needed is outbound TCP 6050 for the SignalWire trunk (see [Firewall](#firewall) below).
+[Troubleshooting](#troubleshooting) for why UDP transport matters here). The SignalWire trunk
+(outbound TCP 5061) doesn't need one either, as long as pfSense's default LAN-to-any rule is
+still in place — see [Firewall](#firewall) below for when that would change.
 
 ## Installation
 
@@ -231,11 +232,24 @@ Then `docker exec freeswitch fs_cli -p "$ESL_PW" -x 'reloadxml'` (see [Verificat
 
 No inbound NAT rules are needed for LAN SIP clients. FreeSwitch receives their registrations and reuses the network path to send calls back.
 
-The only rule required is for the **SignalWire trunk**:
+**No explicit rule is actually needed for the SignalWire trunk either**, as long as pfSense's
+default LAN rule ("LAN net to any") is still in place. FreeSWITCH initiates both the SIP/TLS
+signaling (to SignalWire's real listening port, TCP 5061 — confirmed from a live connection via
+`ss`, not the `6050` that `sofia status` shows, which is only FreeSWITCH's own local bind port;
+see `NOTES.md`) and the RTP media (same `RTPSTARTPORT`–`RTPENDPORT` range as LAN calls) *outward*
+— SignalWire never connects in — so the default allow-outbound rule's statefulness covers the
+return traffic for both. Confirmed in practice: no rule for either port exists in this deployment's
+pfSense config, and the trunk still registers and places calls fine.
+
+This only becomes relevant if LAN egress is ever locked down beyond the default. If so, the rule
+to add is a LAN **pass**, not a NAT/port forward:
 
 | Direction | Protocol | Port | Purpose |
 |-----------|----------|------|---------|
-| Outbound  | TCP      | 6050 | SignalWire SIP/TLS trunk (mod_signalwire) |
+| Outbound  | TCP      | 5061 | SignalWire SIP/TLS trunk (mod_signalwire) |
+
+Destination should stay `any` — SignalWire's own docs say not to firewall by their IPs since they
+can change.
 
 Optional (future WebRTC support):
 
@@ -333,7 +347,7 @@ Call your SignalWire DID from any phone. Your registered SIP client (extension 1
 Set the client's transport to **UDP**. TCP requires an inbound connection from FreeSwitch to the client, which a device firewall typically blocks. UDP uses the existing outbound registration flow and avoids this.
 
 **Gateway shows NOREG after restart**
-Run `docker compose down && docker compose up -d` (not `restart`) to ensure the new image and config are loaded. Check that port 6050 outbound is not blocked by your firewall.
+Run `docker compose down && docker compose up -d` (not `restart`) to ensure the new image and config are loaded. Check that port 5061 outbound is not blocked by your firewall (see [Firewall](#firewall)).
 
 **`-ERR INVALID_GATEWAY` on originate**
 The gateway name is `signalwire` (lowercase). Verify with `sofia status gateway`.
