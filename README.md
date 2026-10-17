@@ -44,7 +44,9 @@ Also, note that I setup a couple of simple cut/paste test call scripts.  It took
 │  sofia profile "internal"       │  ← LAN-facing; SIP clients register here
 │  sofia profile "signalwire"     │  ← trunk to SignalWire (mod_signalwire)
 └─────────────┬───────────────────┘
-              │ SIP/TLS :5061 (outbound-registered trunk)
+              │ SIP/TLS :5061 (outbound, FreeSWITCH → SignalWire — no pfSense rule needed)
+              │ RTP/UDP :20000-20100 (inbound, SignalWire → FreeSWITCH — pfSense port
+              │   forward to .114; see Firewall below)
               ▼
 ┌─────────────────────────────────┐
 │  SignalWire Cloud                │
@@ -59,9 +61,10 @@ Also, note that I setup a couple of simple cut/paste test call scripts.  It took
 
 No pfSense/NAT rules are needed for the Zoiper↔FreeSWITCH leg — it's LAN-local, and FreeSWITCH
 reuses the client's own outbound registration to send calls back (see
-[Troubleshooting](#troubleshooting) for why UDP transport matters here). The SignalWire trunk
-(outbound TCP 5061) doesn't need one either, as long as pfSense's default LAN-to-any rule is
-still in place — see [Firewall](#firewall) below for when that would change.
+[Troubleshooting](#troubleshooting) for why UDP transport matters here). The SignalWire trunk's
+two legs are different: the signaling (outbound TCP 5061) doesn't need a rule either, as long as
+pfSense's default LAN-to-any rule is still in place — but the RTP media (inbound UDP
+20000-20100) does need a real NAT port forward. See [Firewall](#firewall) below for why.
 
 ## Installation
 
@@ -232,24 +235,39 @@ Then `docker exec freeswitch fs_cli -p "$ESL_PW" -x 'reloadxml'` (see [Verificat
 
 No inbound NAT rules are needed for LAN SIP clients. FreeSwitch receives their registrations and reuses the network path to send calls back.
 
-**No explicit rule is actually needed for the SignalWire trunk either**, as long as pfSense's
-default LAN rule ("LAN net to any") is still in place. FreeSWITCH initiates both the SIP/TLS
-signaling (to SignalWire's real listening port, TCP 5061 — confirmed from a live connection via
-`ss`, not the `6050` that `sofia status` shows, which is only FreeSWITCH's own local bind port;
-see `NOTES.md`) and the RTP media (same `RTPSTARTPORT`–`RTPENDPORT` range as LAN calls) *outward*
-— SignalWire never connects in — so the default allow-outbound rule's statefulness covers the
-return traffic for both. Confirmed in practice: no rule for either port exists in this deployment's
-pfSense config, and the trunk still registers and places calls fine.
+**The SignalWire trunk's two ports behave differently, and only one of them needs a real rule:**
 
-This only becomes relevant if LAN egress is ever locked down beyond the default. If so, the rule
-to add is a LAN **pass**, not a NAT/port forward:
+- **Signaling — outbound TCP 5061 (SIP/TLS, `mod_signalwire`).** No explicit pfSense rule is
+  actually needed, as long as pfSense's default LAN rule ("LAN net to any") is still in place.
+  FreeSWITCH is the one that dials out and keeps this connection registered — SignalWire never
+  connects in — so the default allow-outbound rule's statefulness covers the return signaling
+  traffic. (This is TCP 5061, confirmed from a live connection via `ss` — not the `6050` that
+  `sofia status` shows, which is only FreeSWITCH's own local bind port; see `NOTES.md`.) Confirmed
+  in practice: no rule for this port exists in this deployment's pfSense config, and the trunk
+  still registers fine. This only becomes relevant if LAN egress is ever locked down beyond the
+  default — if so, add a LAN **pass** rule (not NAT), destination `any` (SignalWire's docs say not
+  to firewall by their IPs since they can change):
 
-| Direction | Protocol | Port | Purpose |
-|-----------|----------|------|---------|
-| Outbound  | TCP      | 5061 | SignalWire SIP/TLS trunk (mod_signalwire) |
+  | Direction | Protocol | Port | Purpose |
+  |-----------|----------|------|---------|
+  | Outbound  | TCP      | 5061 | SignalWire SIP/TLS trunk signaling (mod_signalwire) |
 
-Destination should stay `any` — SignalWire's own docs say not to firewall by their IPs since they
-can change.
+- **Media — inbound UDP 20000–20100 (RTP), `RTPSTARTPORT`–`RTPENDPORT` from `.env`.** This one
+  **is** a real, required NAT **port forward**, not a pass rule, and it's already in place on
+  this deployment (pfSense: `WAN UDP 20000-20100` → `192.168.100.114:20000-20100`). Unlike
+  signaling, RTP is a fresh connectionless flow per call, and the signaling-channel reasoning
+  above doesn't apply: SignalWire's media server, not FreeSWITCH, is often the side that sends the
+  first packet on a given call's RTP flow (e.g. ringback/early audio on an inbound PSTN call,
+  before your extension has answered) — a stateful firewall drops that first inbound packet if
+  nothing already forwards it. Confirmed this is load-bearing, not leftover: `signalwire-conf.dat`
+  has `ext-rtp-ip`/`ext-sip-ip` explicitly set to the WAN's public IP rather than `.114`'s LAN
+  IP — FreeSWITCH is deliberately advertising its public address in SDP to SignalWire, which only
+  works if this forward exists. Doesn't touch the container or any file in this repo — it's a
+  firewall-only rule, keyed off the same `RTPSTARTPORT`/`RTPENDPORT` range `.env` already defines:
+
+  | Direction | Protocol | Port        | Purpose |
+  |-----------|----------|-------------|---------|
+  | Inbound   | UDP      | 20000-20100 | RTP media for the SignalWire trunk (NAT port forward to the FreeSWITCH host) |
 
 Optional (future WebRTC support):
 

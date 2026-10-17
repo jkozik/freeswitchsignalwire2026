@@ -174,14 +174,36 @@ change — the pfSense rule should match on destination port only, destination `
 This is the same "verify, don't trust the name/default" category this project keeps hitting (see
 the fail2ban section above) — a seventh instance, if anyone's counting.
 
-**Follow-up, same day: turns out no explicit pfSense rule was ever needed for either port.**
-Checked the live pfSense ruleset — no rule exists for 6050 or 5061 — and the trunk still registers
-and places calls. pfSense's default "LAN net to any" rule already permits this outbound traffic
-(both the TLS signaling and the RTP media, same `RTPSTARTPORT`–`RTPENDPORT` range as LAN calls,
-no per-gateway range), and being a stateful firewall, the same rule's state table covers the
-return traffic — nothing SignalWire sends back is a *new* inbound connection. An explicit LAN pass
-rule only becomes necessary if LAN egress is ever restricted beyond that default; README.md and
-SETUP.md document what that rule would look like, framed as conditional rather than required.
+**Follow-up, same day: turns out no explicit pfSense rule was ever needed for the *signaling*
+port.** Checked the live pfSense ruleset — no rule exists for 6050 or 5061 — and the trunk still
+registers and places calls. pfSense's default "LAN net to any" rule already permits this outbound
+TCP traffic, and being a stateful firewall, the same rule's state table covers the return
+signaling traffic — nothing SignalWire sends back on that connection is a *new* inbound
+connection. An explicit LAN pass rule only becomes necessary if LAN egress is ever restricted
+beyond that default; README.md and SETUP.md document what that rule would look like, framed as
+conditional rather than required.
+
+**But the RTP media port range is a genuinely different case, and the existing port forward for
+it is real and necessary — not leftover from the earlier confusion above.** The user already had
+`WAN UDP 20000-20100` → `192.168.100.114:20000-20100` configured in pfSense and asked whether it
+was actually needed, suspecting it might not be (same instinct that correctly killed the 6050/5061
+rule). This time the answer is yes: RTP is a fresh connectionless UDP flow per call, not one
+long-lived outbound connection like the signaling channel, so the "FreeSWITCH always dials out
+first" reasoning doesn't transfer. For an inbound PSTN call, SignalWire's media server is often
+the side that sends the first RTP packet (e.g. ringback/early audio before the extension answers)
+— a stateful firewall drops that unsolicited first packet with no forward in place, regardless of
+the default LAN-to-any egress rule, because this is a genuinely new *inbound* flow, not return
+traffic on an existing outbound one. Confirmed this is load-bearing by checking
+`signalwire-conf.dat`: `ext-rtp-ip` and `ext-sip-ip` are explicitly set to the WAN's public IP
+(not `.114`'s LAN IP) — FreeSWITCH is deliberately advertising its public address in SDP to
+SignalWire, which only works if inbound packets to that public IP on the RTP range actually reach
+`.114`. If this forward were removed, the public-IP advertisement would become actively
+counterproductive (points media at an address nothing forwards), not just unnecessary.
+
+**The general lesson from both of these in one sentence:** a persistent outbound-registered
+control channel (SIP/TLS signaling) is covered by a stateful firewall's default egress rule;
+a fresh per-call connectionless media flow (RTP) is not, and needs an explicit forward whenever
+the far end might be the one to speak first.
 
 ---
 
