@@ -6,6 +6,7 @@ Built from [SignalWire's official Debian Bookworm packages](https://cubepath.com
 
 <img width="1665" height="929" alt="image" src="https://github.com/user-attachments/assets/60b0ae82-5717-4eba-9fbd-4983ffdaf13b" />
 
+*The "SIP Trunk" leg through pfSense shown here is two different ports: outbound TCP 5061 (signaling, no pfSense rule needed) and inbound UDP 20000-20100 (RTP, the NAT rule noted above) — see [Firewall](#firewall) for why they're treated differently.*
 
 ---
 
