@@ -69,7 +69,9 @@ RUN --mount=type=secret,id=signalwire_token,required=true \
 # SIP internal/external
 EXPOSE 5060/udp 5060/tcp
 EXPOSE 5080/udp 5080/tcp
-# SIP TLS (SignalWire trunk)
+# SignalWire trunk: 6050 is FreeSWITCH's own local bind port for the
+# "signalwire" sofia profile; the actual outbound connection to SignalWire's
+# listening port runs on 5061 (see README.md Firewall section / NOTES.md)
 EXPOSE 6050/tcp
 # ESL (Event Socket Layer - fs_cli)
 EXPOSE 8021/tcp
