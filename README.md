@@ -8,6 +8,8 @@ Built from [SignalWire's official Debian Bookworm packages](https://cubepath.com
 
 *The "SIP Trunk" leg through pfSense shown here is two different ports: outbound TCP 5061 (signaling, no pfSense rule needed) and inbound UDP 20000-20100 (RTP, the NAT rule noted above) — see [Firewall](#firewall) for why they're treated differently.*
 
+*FreeSWITCH registers to SignalWire at `jkozik-<account-id>.sip.signalwire.com`, auto-provisioned into `configs/storage/signalwire-conf.dat` (gitignored). That same file also sets `ext-rtp-ip`/`ext-sip-ip` to the home LAN's public WAN IP rather than `.114`'s LAN IP — FreeSWITCH deliberately advertises its public address in SDP, which is what makes the NAT rule above actually work.*
+
 ---
 
 ## Prerequisites
