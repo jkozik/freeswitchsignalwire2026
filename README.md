@@ -4,6 +4,9 @@
 
 Built from [SignalWire's official Debian Bookworm packages](https://cubepath.com/docs/voip-and-communication/freeswitch-voip-server-installation) — no community Docker images.
 
+<img width="1665" height="929" alt="image" src="https://github.com/user-attachments/assets/60b0ae82-5717-4eba-9fbd-4983ffdaf13b" />
+
+
 ---
 
 ## Prerequisites
